@@ -1,1 +1,1 @@
-print("hello the line is updated in git repository  by creating a branch app update ")
+print("hello the line is updated by dev2 ")

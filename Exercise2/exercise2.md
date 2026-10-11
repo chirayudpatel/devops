@@ -12,7 +12,7 @@ Verify that Minikube is running:
 minikube status
 ```
 
-![Minikube status](minikube_status.png)
+![Minikube status](minkube_status.png)
 
 #### 2. Build the Docker Image
 
@@ -130,4 +130,4 @@ The browser should display:
 
 ### Result
 
-Successfully built a Docker image for a Python Flask application and deployed it on a local Kubernetes cluster using Minikube. The Kubernetes Deployment created a running Pod, and the NodePort Service exposed the application for access through a web browser.
+Successfully built a Docker image for a Python Flask application and deployed it on a local Kubernetes cluster using Minikube. The Kubernetes Deployment created a running Pod, and the NodePort Service exposed the application for access through a web browser.cd C:\devops

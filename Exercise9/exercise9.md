@@ -215,7 +215,7 @@ Hello, Jenkins Multi-Stage Pipeline!
 
 The post-build action displays the success message, and the final build status is `SUCCESS`.
 
-![Successful Jenkins pipeline](jenkins_pipeline_success.png)
+![Successful Jenkins pipeline](jenkins_pipeline_succes.png)
 
 The successful execution demonstrates the complete multi-stage workflow, from testing the application to deploying it and performing a second test.
 
@@ -231,4 +231,4 @@ The successful execution demonstrates the complete multi-stage workflow, from te
 
 - Add a code-quality stage using tools such as `flake8` or `pylint`.
 - Deploy the application into a Docker container instead of a local directory.
-- Add email or Slack notifications for pipeline success and failure.
+- Add email or Slack notifications for pipeline success and failure.git add Exercise9/exercise9.md

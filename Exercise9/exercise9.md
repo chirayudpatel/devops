@@ -8,15 +8,15 @@ Build a Jenkins Pipeline job that performs multiple stages — Build, Test, Depl
 
 Automate the CI/CD pipeline for a Python Flask application through five stages:
 
-- **Build:** Prepare the application environment.
+- **Build:** Install or prepare the required dependencies.
 - **Test:** Run unit tests.
 - **Deploy:** Copy the application to a mock deployment directory.
 - **Run Application:** Start the deployed application in the background.
-- **Test Application:** Verify the deployed application using unit tests.
+- **Test Application:** Verify the application after deployment.
 
 ## Step 1: Flask Application
 
-Created the following files inside the `Exercise9` folder.
+Created the following files inside the `Exercise9` directory.
 
 **app.py**
 
@@ -64,19 +64,19 @@ if __name__ == "__main__":
 
 Created a `Jenkinsfile` containing a declarative pipeline with five stages: Build, Test, Deploy, Run Application, and Test Application.
 
-The pipeline executes unit tests, copies `app.py` into a deployment directory, starts the deployed application in the background, and runs the test again. The `post` section displays a success or failure message based on the pipeline result.
+The pipeline executes unit tests, copies `app.py` into the deployment directory, starts the deployed application in the background, and runs the test again. The `post` section displays a success or failure message based on the pipeline result.
 
 ## Step 3: Push to the Existing Repository
 
 Added the Exercise 9 files to the existing GitHub repository:
 
-Repository: `https://github.com/chirayudpatel/devops`
+Repository: [chirayudpatel/devops](https://github.com/chirayudpatel/devops)
 
-The files are stored inside the `Exercise9` directory and were committed and pushed to the `main` branch.
+The application files, `Jenkinsfile`, documentation, and supporting images are stored inside the `Exercise9` directory.
 
-```bash
-git add Exercise9/app.py Exercise9/requirements.txt Exercise9/test_app.py Exercise9/Jenkinsfile
-git commit -m "Add Exercise 9 Jenkins multi-stage pipeline"
+```powershell
+git add Exercise9/
+git commit -m "Add Exercise 9 documentation and screenshots"
 git push origin main
 ```
 
@@ -102,7 +102,7 @@ Saved the configuration and triggered the first build.
 
 The initial pipeline execution failed because `python3` was not available inside the Jenkins container. The Test stage could not execute the unit tests, so the remaining stages were skipped.
 
-The Jenkins container needed Python and Flask installed before the pipeline could run successfully.
+Python and Flask therefore needed to be installed inside the running Jenkins container before the pipeline could run successfully.
 
 ## Step 7: Install Python and Flask Inside the Jenkins Container
 
@@ -150,7 +150,7 @@ The pipeline executed the following stages:
 4. **Run Application:** Started the deployed application in the background.
 5. **Test Application:** Executed the test again.
 
-![Jenkins pipeline build](jenkins_pipeline_build.png.png)
+![Jenkins pipeline build](jenkins_pipeline_build.png)
 
 ![Successful Jenkins pipeline](jenkins_pipeline_success.png)
 

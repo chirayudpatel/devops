@@ -1,31 +1,45 @@
-# Exercise 5: Docker Security with AppArmor and Python
+# Exercise 5: Docker Security with AppArmor
 
 ## Objective
 
-Understand Docker container security using AppArmor, learn how security profiles can restrict container access, and test a containerized Flask application.
+To explore Docker container security using AppArmor profiles, apply a security profile to a Docker container, and test whether restricted actions are blocked.
 
 ## Scenario
 
-A Python Flask application is packaged into a Docker image and run inside a container. The objective is to apply an AppArmor security profile to restrict access to sensitive files, directories, and system operations, and verify that the application continues to work.
+A Flask application is packaged inside a Docker container. An AppArmor profile is defined to restrict access to sensitive files, limit execution of certain binaries, and control capabilities. The profile is then passed to Docker, and restricted actions are tested to evaluate whether the security restrictions are enforced.
 
-## Platform Finding: AppArmor Is Not Available in This Setup
+**Environment:** Windows 11, Docker Desktop, Ubuntu on WSL, Python, and the Docker Python SDK.
 
-Before applying an AppArmor profile, the Docker environment was checked for AppArmor support using:
+## Prerequisites
 
-```bash
-docker info | grep -i apparmor
-echo "Search exit code: ${PIPESTATUS[1]}"
-```
+- Docker Desktop installed and running.
+- Ubuntu WSL integrated with Docker Desktop.
+- Python 3 installed in WSL.
+- VS Code.
+- A Flask application and Docker image.
 
-![AppArmor support check](exit_code.png)
+## Files Used
 
-**Result:** The search returned exit code `1`, indicating that no matching AppArmor entry was found in the Docker information output.
+| File | Description |
+|---|---|
+| `app.py` | Flask application |
+| `dockerfile` | Instructions to build the Docker image |
+| `my-apparmor-profile` | AppArmor profile definition |
+| `apply_apparmor.py` | Applies the requested profile using the Docker SDK |
+| `test_restricted_actions.py` | Tests access to sensitive files and binary execution |
+| `build_image.png` | Docker image build screenshot |
+| `flask_apparmor.png` | Flask application response screenshot |
+| `apparmor_load.png` | AppArmor profile-loading attempt |
+| `apply_apparmor.png` | Python SDK test output |
+| `test_restricted_actions.png` | Restricted-action test output |
 
-This indicates that AppArmor support was not reported by the current Docker environment. AppArmor is a Linux kernel security module, and its availability depends on the host kernel and Docker configuration. Therefore, the absence of an AppArmor entry should be treated as an environment limitation that requires further verification, rather than proof that every security profile is silently ignored.
+---
 
-## Step 1: Create the Flask Application
+## Task 1: Create the Flask Application
 
-Create a file named `app.py` with the following code:
+The Flask application returns a message when accessed through its root endpoint.
+
+The application is saved in `app.py`.
 
 ```python
 from flask import Flask
@@ -40,137 +54,220 @@ if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
 ```
 
-The Flask application exposes a root endpoint (`/`) that returns a message when accessed through a browser or an HTTP client.
+## Task 2: Build the Docker Image
 
-## Step 2: Create the Dockerfile
+The Dockerfile defines the Python environment, copies the application into the container, installs Flask, exposes port 5000, and starts the application.
 
-Create a file named `Dockerfile`:
+The file in the project folder is named `dockerfile`.
 
-```dockerfile
-FROM python:3.8-slim
-
-WORKDIR /app
-
-COPY . /app
-
-RUN pip install --no-cache-dir flask
-
-EXPOSE 5000
-
-CMD ["python", "app.py"]
-```
-
-The Dockerfile uses Python 3.8 slim as the base image, installs Flask, copies the application into the container, and exposes port `5000`.
-
-## Step 3: Build the Docker Image
-
-Build the image using:
+Build the image from the `Exercise5` directory:
 
 ```bash
-docker build -t flask-apparmor .
+docker build -f dockerfile -t flask-apparmor .
 ```
 
-Verify that the image was created:
+The image was built successfully and was available for creating containers.
+
+### Screenshot: Docker Image Build
+
+![Docker image build](build_image.png)
+
+## Task 3: Define and Attempt to Load the AppArmor Profile
+
+The profile is saved in `my-apparmor-profile`. It specifies restrictions for sensitive files, binary execution, network access, application-directory access, and capabilities.
+
+The profile definition is:
+
+```text
+#include <tunables/global>
+
+/usr/bin/python3 {
+    # Deny access to sensitive system files
+    deny /etc/** r,
+    deny /var/** rw,
+
+    # Allow Flask app to bind to port 5000
+    network inet stream,
+
+    # Permissions to the application directory
+    /app/** rwk,
+
+    # Deny execution of any binaries in /bin or /usr/bin
+    deny /bin/** rmix,
+    deny /usr/bin/** rmix,
+
+    # Capability restrictions
+    capability net_bind_service,
+    deny capability sys_admin,
+}
+```
+
+The profile-loading attempt was executed from Windows PowerShell in the `Exercise5` directory:
+
+```powershell
+docker run --rm --privileged -v "${PWD}/my-apparmor-profile:/etc/apparmor.d/my-apparmor-profile" ubuntu:22.04 bash -c "apt-get update -qq && apt-get install -y -qq apparmor > /dev/null 2>&1 && apparmor_parser -r /etc/apparmor.d/my-apparmor-profile"
+```
+
+The command downloaded the Ubuntu image and attempted to load the profile. However, it reported that the AppArmor interface file was missing and that a suitable filesystem could not be found in `/proc/mounts`.
+
+These messages indicate that the required AppArmor support was unavailable in the current Docker Desktop/WSL kernel environment.
+
+### Screenshot: AppArmor Profile-Loading Attempt
+
+![AppArmor profile-loading attempt](apparmor_load.png)
+
+### Run the Flask Container
+
+The Flask container was started with the requested AppArmor security option and host port 5001:
 
 ```bash
-docker images flask-apparmor
+docker run --security-opt="apparmor=my-apparmor-profile" -p 5001:5000 -d --name flask-apparmor-test flask-apparmor
 ```
 
-![Docker image build and image listing](build_image.png)
-
-**Result:** The `flask-apparmor:latest` image was built successfully and is available locally.
-
-## Step 4: Attempt to Run the Container with an AppArmor Profile
-
-Run the following command to request the use of an AppArmor profile:
+The container status was checked:
 
 ```bash
-docker run --security-opt="apparmor=my-apparmor-profile" \
-  -p 5001:5000 \
-  -d \
-  --name flask-apparmor-test \
-  flask-apparmor
+docker ps --filter "name=flask-apparmor-test"
 ```
 
-![Container launch and status](flask_apparmor.png)
-
-The container started successfully and was listed as running. The host port `5001` was mapped to container port `5000`, allowing the application to be accessed through `http://localhost:5001/`.
-
-**Security observation:** Successful container startup does not establish that the requested AppArmor profile was loaded or enforced. The actual security behavior depends on the Docker engine and host kernel support.
-
-## Step 5: Confirm That the Flask Application Works
-
-Test the application using:
+The application was tested using:
 
 ```bash
 curl http://localhost:5001/
 ```
 
-![Flask application test](testing.png)
-
-**Response:**
+The application returned:
 
 ```text
 Hello, this is a secure Flask application running inside a Docker container!
 ```
 
-This confirms that the Flask application is responding successfully through the published port.
+This confirmed that the Flask application was accessible through the mapped host port. It did not confirm that AppArmor restrictions were enforced.
 
-## Step 6: Inspect the Container Security Configuration
+### Screenshot: Flask Application Response
 
-Inspect the security options configured for the container:
+![Flask application response](flask_apparmor.png)
 
-```bash
-docker inspect flask-apparmor-test \
-  --format '{{json .HostConfig.SecurityOpt}}'
-```
+## Task 4: Apply the Profile Using the Python Docker SDK
 
-The output can show the security options supplied when the container was created. However, the presence of an option in the container configuration does not independently prove that the corresponding security profile is being enforced.
-
-To check the container status, run:
+The Docker Python SDK was installed inside a Python virtual environment in WSL.
 
 ```bash
-docker ps -a
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install docker
 ```
 
-## What a Working AppArmor Profile Would Do
+Docker connectivity was verified using:
 
-On a Linux host that supports AppArmor, a properly designed and loaded profile can restrict a container's access to selected files, directories, executables, capabilities, and other system resources.
+```bash
+python -c "import docker; print(docker.from_env().version())"
+```
 
-For example, a profile can be designed to:
+The `apply_apparmor.py` script builds the image, starts a temporary container with the requested security option, inspects its Docker configuration, and removes the container.
 
-- Restrict access to sensitive system configuration files.
-- Limit write access to selected directories.
-- Restrict execution of unnecessary binaries.
-- Deny dangerous Linux capabilities.
-- Reduce the potential impact of a compromised application.
+```python
+import docker
 
-A profile must be written for the application, validated, loaded into the host's AppArmor system, and applied to the container. Its enforcement should then be verified with appropriate tests on a supported Linux environment.
+client = docker.from_env()
+
+client.images.build(path=".", tag="flask-apparmor")
+
+container = client.containers.run(
+    "flask-apparmor",
+    ports={"5000/tcp": 5002},
+    security_opt=["apparmor=my-apparmor-profile"],
+    detach=True
+)
+
+print(f"Container started: {container.short_id}")
+
+container_info = client.api.inspect_container(container.id)
+apparmor_profile = container_info["HostConfig"]["SecurityOpt"]
+
+print(f"AppArmor profile applied: {apparmor_profile}")
+
+container.stop()
+container.remove()
+print("Test container stopped and removed.")
+```
+
+The script was executed using:
+
+```bash
+python apply_apparmor.py
+```
+
+The output confirmed that the container started, Docker reported the requested security option, and the temporary container was stopped and removed.
+
+The reported option confirms that the configuration was requested through Docker. It does not demonstrate that the kernel loaded or enforced the profile.
+
+### Screenshot: Python SDK Test
+
+![Python SDK test output](apply_apparmor.png)
+
+## Task 5: Test Restricted Actions
+
+The `test_restricted_actions.py` script tests whether the container can read `/etc/passwd` and execute `/bin/bash`.
+
+```python
+import docker
+
+client = docker.from_env()
+
+container = client.containers.run(
+    "flask-apparmor",
+    ports={"5000/tcp": 5002},
+    security_opt=["apparmor=my-apparmor-profile"],
+    detach=True
+)
+
+try:
+    exit_code, output = container.exec_run("cat /etc/passwd")
+    print(
+        f"Attempt to read /etc/passwd: "
+        f"Exit Code {exit_code}, Output: {output.decode()}"
+    )
+
+    exit_code, output = container.exec_run("/bin/bash")
+    print(
+        f"Attempt to execute /bin/bash: "
+        f"Exit Code {exit_code}, Output: {output.decode()}"
+    )
+finally:
+    container.stop()
+    container.remove()
+```
+
+The script was executed using:
+
+```bash
+python test_restricted_actions.py
+```
+
+### Actual Results
+
+| Test | Observed result | Interpretation |
+|---|---|---|
+| Read `/etc/passwd` | Exit code `0`; file contents were returned | The file read was not blocked. |
+| Execute `/bin/bash` | Exit code `0` | The command was not denied; this result alone does not prove an interactive shell was opened. |
+
+Both tests completed without an AppArmor denial. These results are consistent with the earlier profile-loading failure: AppArmor enforcement was not demonstrated in the current environment.
+
+### Screenshot: Restricted-Action Test
+
+![Restricted-action test output](test_restricted_actions.png)
+
+## Results and Discussion
+
+The Flask application was successfully containerized and accessed through the host port mapping. The AppArmor profile was defined and supplied to Docker as a security option. The Docker Python SDK was also used successfully to create and inspect a container.
+
+However, the attempt to load the AppArmor profile failed because the required AppArmor filesystem and kernel support were unavailable in the current Docker Desktop/WSL environment. The restricted-action tests consequently returned exit code `0` rather than demonstrating that the requested restrictions were enforced.
+
+The experiment therefore demonstrates the container setup, profile configuration attempt, SDK interaction, and security testing procedure, but **it does not demonstrate successful AppArmor enforcement**.
 
 ## Conclusion
 
-This exercise demonstrated how to build a Docker image for a Flask application, start a container with a requested AppArmor security option, inspect the container configuration, and test the application's HTTP response.
+This exercise explored Docker container security using an AppArmor profile. A Flask application was built into a Docker image, launched as a container, and tested through its HTTP endpoint. A profile was defined and passed to Docker using both command-line options and the Python Docker SDK.
 
-The Docker image was built successfully, the container started, and the Flask endpoint returned the expected response. However, the Docker information search did not report AppArmor support. Consequently, successful application execution and container startup should not be interpreted as proof of AppArmor enforcement. A Linux environment with verified AppArmor support is required to fully demonstrate and test profile-based restrictions.
-
-## Q&A
-
-**Q1. What is the purpose of AppArmor in Docker?**
-
-AppArmor provides mandatory access control on supported Linux systems. It can restrict what a containerized application is permitted to access or execute.
-
-**Q2. How does an AppArmor profile help secure a container?**
-
-A profile defines security rules that allow or deny selected operations. When properly enforced, these rules can reduce the potential impact of an application compromise.
-
-**Q3. Why should access to sensitive directories be restricted?**
-
-Directories containing system configuration and application secrets may expose sensitive information or permit unwanted changes if access is not appropriately controlled.
-
-**Q4. Does successful container startup prove that AppArmor is working?**
-
-No. The container can start and the application can respond even when AppArmor enforcement has not been established. Host support and profile enforcement must be verified separately.
-
-**Q5. How can the container's security options be inspected?**
-
-The `docker inspect` command can display the configured security options through the `HostConfig.SecurityOpt` field. This shows configuration, not conclusive proof of enforcement.
+The profile-loading attempt failed because the current environment did not provide the required AppArmor kernel support. Both restricted-action tests were therefore allowed to complete, and successful enforcement could not be verified. The results highlight the importance of checking host-kernel support before relying on a container security profile.

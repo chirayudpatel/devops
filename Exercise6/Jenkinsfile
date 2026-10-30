@@ -1,0 +1,35 @@
+
+pipeline {
+    agent any
+
+    stages {
+
+        stage('Check Docker') {
+            steps {
+                sh 'docker version'
+                echo 'Docker connection successful'
+            }
+        }
+
+        stage('Verify Project Files') {
+            steps {
+                sh '''
+                    test -f /delivery_monitoring/delivery_metrics.py
+                    test -f /delivery_monitoring/prometheus.yml
+                    test -f /delivery_monitoring/alert_rules.yml
+                '''
+                echo 'Project files verified'
+            }
+        }
+
+        stage('Check Monitoring Containers') {
+            steps {
+                sh '''
+                    docker inspect prometheus
+                    docker inspect grafana
+                '''
+                echo 'Monitoring containers verified'
+            }
+        }
+    }
+}

@@ -2,11 +2,11 @@
 
 ## Objective
 
-Build a monitoring pipeline for a simulated delivery service using Python, Prometheus, and Grafana to generate metrics, monitor operations, and visualize data in real time.
+Build a monitoring pipeline for a simulated delivery service using Python, Prometheus, Grafana, and Jenkins to generate metrics, monitor operations, visualize data in real time, and verify the monitoring setup through an automated pipeline.
 
 ## Scenario
 
-As a DevOps engineer at a delivery service, create a system that monitors delivery metrics and identifies operational issues using dashboards and automated alerts.
+As a DevOps engineer at a delivery service, create a system that monitors delivery metrics and identifies operational issues using dashboards, automated alerts, and Jenkins-based pipeline verification.
 
 ## Step 1: Install the Python Package
 
@@ -87,7 +87,7 @@ docker run -d --name prometheus -p 9090:9090 \
   prom/prometheus
 ```
 
-Access Prometheus at http://localhost:9090.
+Access Prometheus at [http://localhost:9090](http://localhost:9090).
 
 ![Prometheus Running](prometheus_running.png)
 
@@ -109,7 +109,7 @@ docker run -d --name grafana -p 3000:3000 \
   grafana/grafana
 ```
 
-Open http://localhost:3000 and log in using `admin` as the username and `admin` as the initial password.
+Open [http://localhost:3000](http://localhost:3000) and log in using `admin` as the username and `admin` as the initial password.
 
 ![Grafana Running](grafana_running.png)
 
@@ -151,9 +151,194 @@ Open **Alerts** in Prometheus to check the configured alert rules.
 
 ![Prometheus Alerts](prometheus_alerts.png)
 
+## Step 11: Create a Docker Network for Monitoring
+
+Create a Docker network named `monitoring` to allow the Prometheus, Grafana, and Jenkins containers to communicate using their container names.
+
+```bash
+docker network create monitoring
+```
+
+Connect the existing Prometheus and Grafana containers to the network:
+
+```bash
+docker network connect monitoring prometheus
+docker network connect monitoring grafana
+```
+
+Verify the network:
+
+```bash
+docker network inspect monitoring
+```
+
+The Prometheus and Grafana containers should appear as members of the `monitoring` network.
+
+## Step 12: Update the Grafana Data Source
+
+Since Prometheus and Grafana are now connected to the same Docker network, update the Prometheus data source URL in Grafana.
+
+Navigate to **Connections → Data sources → Prometheus**.
+
+Change the URL to:
+
+```text
+http://prometheus:9090
+```
+
+Click **Save & test** to verify the connection.
+
+This uses Docker's internal network DNS to allow Grafana to reach Prometheus using its container name.
+
+## Step 13: Create a Custom Jenkins Docker Image
+
+Create a file named `Dockerfile.jenkins` to build a Jenkins image with Docker CLI support.
+
+```dockerfile
+FROM jenkins/jenkins:lts-jdk17
+
+USER root
+
+RUN apt-get update && \
+    apt-get install -y docker.io && \
+    rm -rf /var/lib/apt/lists/*
+
+USER jenkins
+```
+
+Build the custom Jenkins image:
+
+```bash
+docker build -t jenkins-with-docker -f Dockerfile.jenkins .
+```
+
+This image provides Jenkins with Docker CLI access so that pipeline stages can execute Docker commands.
+
+## Step 14: Run Jenkins with Docker Access
+
+Run Jenkins as a Docker container with access to the Docker socket and the Exercise 6 project directory.
+
+```bash
+docker run -d \
+  --name jenkins \
+  -p 8080:8080 \
+  -p 50000:50000 \
+  -v jenkins_home:/var/jenkins_home \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  -v "/mnt/c/devops/Exercise6:/delivery_monitoring:ro" \
+  jenkins-with-docker
+```
+
+The volume mounts provide:
+
+- `jenkins_home`: Persistent storage for Jenkins configuration and job data.
+- `/var/run/docker.sock`: Access to the host Docker engine.
+- `/delivery_monitoring`: Read-only access to the Exercise 6 project files.
+
+Open Jenkins at [http://localhost:8080](http://localhost:8080) and log in.
+
+## Step 15: Configure Jenkins Docker Permissions
+
+Configure Jenkins to access the Docker socket by adding the Jenkins user to a group with the same group ID as the Docker socket.
+
+Check the Docker socket group ID:
+
+```bash
+stat -c '%g' /var/run/docker.sock
+```
+
+In this setup, the group ID is `1001`.
+
+Create the corresponding group inside the Jenkins container and add the Jenkins user:
+
+```bash
+docker exec -u root jenkins groupadd -g 1001 docker-host
+docker exec -u root jenkins usermod -aG docker-host jenkins
+```
+
+Restart Jenkins:
+
+```bash
+docker restart jenkins
+```
+
+Verify Docker access from inside the Jenkins container:
+
+```bash
+docker exec jenkins docker version
+```
+
+Also verify the Docker engine connection:
+
+```bash
+docker exec jenkins docker info
+```
+
+Successful execution confirms that Jenkins can communicate with the Docker engine.
+
+## Step 16: Create a Jenkins Pipeline
+
+Open Jenkins at [http://localhost:8080](http://localhost:8080).
+
+1. Select **New Item**.
+2. Enter the job name `Delivery-Monitoring-Pipeline`.
+3. Select **Pipeline** and click **OK**.
+4. Under the Pipeline section, select **Pipeline script** as the Definition.
+5. Enter the following pipeline script.
+
+```groovy
+pipeline {
+    agent any
+
+    stages {
+
+        stage('Check Docker') {
+            steps {
+                sh 'docker version'
+                echo 'Docker connection successful'
+            }
+        }
+
+        stage('Verify Project Files') {
+            steps {
+                sh '''
+                    test -f /delivery_monitoring/delivery_metrics.py
+                    test -f /delivery_monitoring/prometheus.yml
+                    test -f /delivery_monitoring/alert_rules.yml
+                '''
+                echo 'Project files verified'
+            }
+        }
+
+        stage('Check Monitoring Containers') {
+            steps {
+                sh '''
+                    docker inspect prometheus
+                    docker inspect grafana
+                '''
+                echo 'Monitoring containers verified'
+            }
+        }
+    }
+}
+```
+
+Click **Save** and then select **Build Now** to execute the pipeline.
+
+The pipeline performs three stages:
+
+- **Check Docker:** Verifies that Jenkins can communicate with the Docker engine.
+- **Verify Project Files:** Checks whether the delivery metrics script and Prometheus configuration files are accessible.
+- **Check Monitoring Containers:** Verifies that the Prometheus and Grafana containers exist and can be inspected.
+
+A successful execution displays **Finished: SUCCESS** in the Jenkins Console Output.
+
 ## Expected Outputs
 
 - **Metrics Endpoint:** Delivery metrics available at `http://localhost:8000/metrics`.
 - **Prometheus:** Successfully scrapes the configured targets.
 - **Grafana Dashboard:** Displays four delivery monitoring panels.
 - **Alerting:** Detects high pending deliveries and increased average delivery time.
+- **Docker Networking:** Prometheus and Grafana communicate through the monitoring network.
+- **Jenkins:** Successfully connects to Docker, verifies project files, and checks the monitoring containers through an automated pipeline.
+

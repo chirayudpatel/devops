@@ -2,25 +2,37 @@
 
 ## Objective
 
-To secure a Flask application running inside a Docker container using AppArmor. A custom AppArmor security profile is created and attached to the Docker container to restrict access to sensitive system files and prevent unauthorized operations.
+To secure a Flask application running inside a Docker container using AppArmor. A custom AppArmor security profile is created and attached to the Docker container to restrict access to sensitive system files and prevent unauthorized operations. Python Docker SDK scripts are also used to automate container configuration and test security restrictions.
+
+## Tools and Technologies
+
+- Ubuntu 24.04 LTS
+- Docker
+- AppArmor
+- Python 3.10
+- Flask
+- Docker SDK for Python
+- VirtualBox
 
 ## Steps of Execution
 
-### Step 1: Use Ubuntu VM and Verify AppArmor
+### Step 1: Set Up Ubuntu VM and Verify AppArmor
 
-Check whether AppArmor is enabled in the Ubuntu VM.
+Ubuntu 24.04.5 LTS was installed and configured inside VirtualBox.
+
+Check whether AppArmor is enabled:
 
 ```bash
 cat /sys/module/apparmor/parameters/enabled
 ```
 
-Check whether the AppArmor filesystem is mounted.
+Check whether the AppArmor filesystem is mounted:
 
 ```bash
 mount | grep apparmor
 ```
 
-Install AppArmor utilities.
+Install AppArmor utilities:
 
 ```bash
 sudo apt update
@@ -29,20 +41,20 @@ sudo apt install -y apparmor-utils
 
 ### Step 2: Create the Flask Application
 
-Create a project directory and navigate into it.
+Create a project directory:
 
 ```bash
 mkdir flask-apparmor
 cd flask-apparmor
 ```
 
-Create the Flask application.
+Create the Flask application:
 
 ```bash
 nano app.py
 ```
 
-Add the following Python code:
+Add the following code:
 
 ```python
 from flask import Flask
@@ -59,7 +71,7 @@ if __name__ == '__main__':
 
 ### Step 3: Create the Dockerfile and Build the Image
 
-Create a Dockerfile.
+Create a Dockerfile:
 
 ```bash
 nano Dockerfile
@@ -81,13 +93,13 @@ EXPOSE 5000
 CMD ["python", "app.py"]
 ```
 
-Build the Docker image.
+Build the Docker image:
 
 ```bash
 sudo docker build -t flask-apparmor .
 ```
 
-Verify that the Docker image has been created.
+Verify the image:
 
 ```bash
 sudo docker images
@@ -95,13 +107,13 @@ sudo docker images
 
 ### Step 4: Create a Custom AppArmor Profile
 
-Create a custom AppArmor profile.
+Create a custom profile:
 
 ```bash
 sudo nano /etc/apparmor.d/flask-apparmor
 ```
 
-Add the following profile configuration:
+Add the following configuration:
 
 ```text
 #include <tunables/global>
@@ -135,13 +147,13 @@ profile flask-apparmor flags=(attach_disconnected,mediate_deleted) {
 }
 ```
 
-Parse and load the AppArmor profile.
+Parse and load the profile:
 
 ```bash
 sudo apparmor_parser -r -W /etc/apparmor.d/flask-apparmor
 ```
 
-Verify that the profile is loaded.
+Verify that the profile is loaded:
 
 ```bash
 sudo aa-status | grep flask-apparmor
@@ -149,13 +161,13 @@ sudo aa-status | grep flask-apparmor
 
 ### Step 5: Run the Docker Container with AppArmor Security
 
-Remove any previously created container with the same name.
+Remove any previously created container with the same name:
 
 ```bash
 sudo docker rm -f flask-app
 ```
 
-Run the Docker container with the custom AppArmor profile.
+Run the container with the custom AppArmor profile:
 
 ```bash
 sudo docker run -d \
@@ -165,31 +177,31 @@ sudo docker run -d \
 flask-apparmor
 ```
 
-Check whether the container is running.
+Check whether the container is running:
 
 ```bash
 sudo docker ps
 ```
 
-Check the application logs.
+Check the application logs:
 
 ```bash
 sudo docker logs flask-app
 ```
 
-The Flask application should start successfully and listen on port 5000.
+The Flask application starts and listens on port 5000.
 
 ![Flask container logs](01-flask-container-logs.jpeg)
 
 ### Step 6: Access the Flask Application
 
-Open Firefox inside the Ubuntu VM and visit the following address:
+Open Firefox inside the Ubuntu VM and visit:
 
 ```text
 http://localhost:5000
 ```
 
-The browser displays the message:
+The browser displays:
 
 **Flask App running with AppArmor!**
 
@@ -197,30 +209,114 @@ The browser displays the message:
 
 ### Step 7: Verify AppArmor Security Restrictions
 
-Check which AppArmor profile is attached to the Docker container.
+Check which AppArmor profile is attached to the Docker container:
 
 ```bash
 sudo docker inspect --format '{{.AppArmorProfile}}' flask-app
 ```
 
-The output should display:
+Expected output:
 
 ```text
 flask-apparmor
 ```
 
-Try accessing the protected shadow file from inside the Docker container.
+Attempt to access the protected shadow file from inside the container:
 
 ```bash
 sudo docker exec flask-app cat /etc/shadow
 ```
 
-The command returns **Permission denied** because the custom AppArmor profile restricts access to sensitive system files.
+The command returns `Permission denied` because the custom AppArmor profile restricts access to this sensitive file.
 
-![AppArmor profile and container verification](02-apparmor-profile-verification.jpeg)
+![AppArmor profile verification](02-apparmor-profile-verification.jpeg)
 
-![Docker container and permission denied security test](04-container-and-permission-denied.jpeg)
+![Container and permission denied test](04-container-and-permission-denied.jpeg)
+
+### Step 8: Install the Python Docker SDK
+
+Create and activate a Python virtual environment:
+
+```bash
+python3 -m venv venv
+source venv/bin/activate
+```
+
+Install the Docker SDK:
+
+```bash
+pip install docker
+```
+
+The Docker SDK allows Python scripts to communicate with the Docker Engine and manage containers programmatically.
+
+### Step 9: Automate AppArmor Configuration Using Python SDK
+
+Create the Python script:
+
+```bash
+nano apply_apparmor.py
+```
+
+The script uses the Docker SDK to:
+
+1. Connect to the Docker Engine.
+2. Build the Flask Docker image.
+3. Start a container with the custom AppArmor profile.
+4. Inspect the container security configuration.
+5. Stop and remove the test container.
+
+Execute the script:
+
+```bash
+sudo ./venv/bin/python apply_apparmor.py
+```
+
+The output confirms that the container was started and the `flask-apparmor` security profile was attached successfully.
+
+### Step 10: Test Restricted Actions Using Python SDK
+
+Create the testing script:
+
+```bash
+nano test_restricted_actions.py
+```
+
+The script performs two security tests:
+
+**Test 1: Restricted file access**
+
+Attempts to read `/etc/shadow` from inside the container.
+
+**Test 2: System binary execution**
+
+Attempts to execute `/bin/bash` inside the container.
+
+Execute the script:
+
+```bash
+sudo ./venv/bin/python test_restricted_actions.py
+```
+
+Observed results:
+
+- Access to `/etc/shadow` was denied with a permission error.
+- Execution of `/bin/bash` was successful in this test.
+
+The test container is stopped and removed after execution.
+
+![Python SDK security testing](sdk_permission.jpeg)
+
+### Step 11: Verify AppArmor Denial Logs
+
+Check the Ubuntu kernel logs for AppArmor security events:
+
+```bash
+sudo journalctl -k --since "10 minutes ago" | grep -i apparmor
+```
+
+The logs contain AppArmor denial entries associated with the custom profile, demonstrating that restricted operations are being recorded by the Linux kernel.
 
 ## Result
 
-Successfully built and executed a Flask application inside a Docker container with a custom AppArmor security profile. The application was accessible through the browser, and AppArmor successfully restricted access to sensitive files such as `/etc/shadow`, demonstrating container-level security enforcement.
+Successfully deployed a Flask application inside a Docker container with a custom AppArmor security profile. The Flask application was accessible through the browser, while access to the protected `/etc/shadow` file was denied. Python Docker SDK scripts were also executed to automate container configuration and test security restrictions. The kernel logs provided additional evidence of AppArmor enforcement.

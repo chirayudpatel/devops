@@ -36,7 +36,7 @@ mkdir flask-apparmor
 cd flask-apparmor
 ```
 
-Create the Flask application using the following command.
+Create the Flask application.
 
 ```bash
 nano app.py
@@ -179,6 +179,8 @@ sudo docker logs flask-app
 
 The Flask application should start successfully and listen on port 5000.
 
+![Flask container logs](01-flask-container-logs.jpeg)
+
 ### Step 6: Access the Flask Application
 
 Open Firefox inside the Ubuntu VM and visit the following address:
@@ -191,7 +193,7 @@ The browser displays the message:
 
 **Flask App running with AppArmor!**
 
-![Flask application running in browser](screenshots/03-flask-browser-test.jpeg)
+![Flask application running in browser](03-flask-browser-test.jpeg)
 
 ### Step 7: Verify AppArmor Security Restrictions
 
@@ -215,11 +217,9 @@ sudo docker exec flask-app cat /etc/shadow
 
 The command returns **Permission denied** because the custom AppArmor profile restricts access to sensitive system files.
 
-![Docker container and permission denied security test](screenshots/04-container-and-permission-denied.jpeg)
+![AppArmor profile and container verification](02-apparmor-profile-verification.jpeg)
 
-![AppArmor profile and container verification](screenshots/02-apparmor-profile-verification.jpeg)
-
-![Flask container logs](screenshots/01-flask-container-logs.jpeg)
+![Docker container and permission denied security test](04-container-and-permission-denied.jpeg)
 
 ## Result
 

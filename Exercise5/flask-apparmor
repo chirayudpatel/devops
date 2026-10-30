@@ -1,0 +1,29 @@
+#include <tunables/global>
+
+profile flask-apparmor flags=(attach_disconnected,mediate_deleted) {
+    #include <abstractions/base>
+
+    # Allow network communication
+    network inet stream,
+    network inet6 stream,
+
+    # Allow Python libraries
+    /usr/local/bin/python r,
+    /usr/local/lib/python3.10/** mr,
+
+    # Allow Flask application access
+    /app/** r,
+
+    # Allow temporary file access
+    /tmp/** rw,
+
+    # Deny access to sensitive files
+    deny /etc/shadow r,
+    deny /etc/gshadow r,
+
+    # Restrict root directory access
+    deny /root/** rwklx,
+
+    # Restrict system administration capability
+    deny capability sys_admin,
+}

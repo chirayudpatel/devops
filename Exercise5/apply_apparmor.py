@@ -8,7 +8,7 @@ client.images.build(path=".", tag="flask-apparmor")
 container = client.containers.run(
     "flask-apparmor",
     ports={"5000/tcp": 5002},
-    security_opt=["apparmor=my-apparmor-profile"],
+    security_opt=["apparmor=flask-apparmor"],
     detach=True
 )
 
